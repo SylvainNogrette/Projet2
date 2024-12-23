@@ -1,10 +1,8 @@
 import requests
-from bs4 import BeautifulSoup
+import csv
+from parsel import Selector
 
-url ="http://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html"
-
-response = requests.get(url)
-
-if response.ok:
-   # print(response.headers) #renvoie les en-têtes
-    print(response.content)
+url = "http://books.toscrape.com/"
+text = requests.get(url).text
+selector = Selector(text=text)
+selector.xpath('//h1/text()').re(r'\w+')
