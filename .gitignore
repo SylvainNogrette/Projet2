@@ -1,0 +1,4 @@
+#Ignorer les dossiers stockant les images
+.venv
+__pycache__
+Books Pictures
