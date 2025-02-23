@@ -9,43 +9,15 @@ import unicodedata
 #Global variables :
 urlAccueil = "http://books.toscrape.com/"
 
-def DefineFolderName(cat,FolderNumber):
-    FolderName = str(FolderNumber) + " - " + cat
-    return FolderName
+#Extraction des données
 
-def BuiltDirectoryCategory(DirectoryName):
-
-    try :
-        os.mkdir(DirectoryName)
-    except :
-         pass
-    os.chdir(DirectoryName)
-    try :
-        os.mkdir("Books Pictures")  
-    except :
-        pass        
-    os.chdir('..')
-    return
-
-def DisplayCorrectString(textToDisplay):
-    normalizedText = unicodedata.normalize('NFC',textToDisplay).encode('ascii','ignore').decode('utf8')
-    return normalizedText
-
-def GetBooksFromCategory(url):
-    listbook = []
-    for urlpage in GetAllUrlPagesFromCategories(url) :
-        soup = GetSoup(urlpage)
-        soupbook = soup.findAll("h3")
-        try : 
-            for article in soupbook:
-                listbook.append(
-                      urlAccueil 
-                    + "catalogue/"+article.find("a").get("href").lstrip("./")
-                    )
-        except Exception as e :
-            print(e)    
-    return listbook
-
+def GetSoup(url):
+    response = requests.get(url)
+    if response.status_code == 200:
+        html = response.text
+        return BeautifulSoup(html,"html.parser")
+    else :
+        print ("Page inexistante")
 
 def GetAllUrlPagesFromCategories(firsturl):
     soup = GetSoup(firsturl)
@@ -62,16 +34,22 @@ def GetAllUrlPagesFromCategories(firsturl):
     except Exception as e :
         print (e)
 
+def GetBooksUrlPerCategory(url):
+    listbook = []
+    for urlpage in GetAllUrlPagesFromCategories(url) :
+        soup = GetSoup(urlpage)
+        soupbook = soup.findAll("h3")
+        try : 
+            for article in soupbook:
+                listbook.append(
+                      urlAccueil 
+                    + "catalogue/"+article.find("a").get("href").lstrip("./")
+                    )
+        except Exception as e :
+            print(e)    
+    return listbook
 
-def GetSoup(url):
-    response = requests.get(url)
-    if response.status_code == 200:
-        html = response.text
-        return BeautifulSoup(html,"html.parser")
-    else :
-        print ("Page inexistante")
-
-def BuiltBook(cat,urlbook):
+def GetBookInfoInList(cat,urlbook):
     soup = GetSoup(urlbook)
     try :
         
@@ -88,7 +66,14 @@ def BuiltBook(cat,urlbook):
         # image_url
         try : 
             os.chdir("Books Pictures")
-            image_file = re.sub(r'[\\/*?:"<>|]',"",str(soup.find("h1").text)) + ".jpg"
+            image_file = DisplayCorrectString(re.sub(r'[\\/*?:"<>|]',"",str(soup.find("h1").text)) + ".jpg")
+            
+            #Modify the .jpg name if lenght is not supported (>250 characters)
+            CheckLenght = len(image_file) + len(os.path.abspath(os.getcwd()))
+            if CheckLenght >= 257 :
+                NbExceedingChar = len(image_file) + len(os.path.abspath(os.getcwd())) -250 -4 #Minus 4 in order to count the ext .jpg
+                image_file =  image_file[:len(image_file) - NbExceedingChar] + ".jpg"
+            
             urllib.request.urlretrieve(
                 urlAccueil + soup.find("img").get("src").lstrip('./') , image_file)
             
@@ -125,54 +110,76 @@ def BuiltBook(cat,urlbook):
         print(e)
     return bookInfos
 
-response = requests.get(urlAccueil)
-if response.status_code == 200:
-    htmlAccueil = response.text
-    soup = BeautifulSoup(htmlAccueil,"html.parser")
-    ulcategories = soup.find("ul", {"class":"nav nav-list"})
-    try : 
-        i=0
-        categoriesList= []
 
-        for a in ulcategories.findAll("a"):
-            tempdict = []
-            if i == 0 :
-                 i=i+1
-                 continue
-            else :
-                urlcategory = urlAccueil + a.get("href")               
-                tempdict.append(a.text.strip())
-                tempdict.append(urlcategory)
-            categoriesList.append(tempdict)
-        
-        headers = [
-            "product_page_url","universal_product_code","title",
-            "price_including_tax","price_excluding_tax",
-            "number_available","product_description","category",
-            "review_rating","image_file","image_url"]
-        j = 1
-        for category , url in categoriesList :
-            
-            BuiltDirectoryCategory(DefineFolderName(category,j))
-            os.chdir(DefineFolderName(category,j))
-            j+=1
-            with open(str(category)+"_books.csv","w",newline="", encoding ="utf-8") as fichier_csv :
+#Transformation des données
 
-                writer = csv.DictWriter(fichier_csv, fieldnames=headers)
-                writer.writeheader()
-                writer = csv.writer(fichier_csv,delimiter=",", quoting=csv.QUOTE_ALL)
-                
-                for bookUrl in GetBooksFromCategory(url):  
-                    BuiltBookInfo = BuiltBook(category,bookUrl)          
-                    writer.writerow(BuiltBookInfo)
+def DisplayCorrectString(textToDisplay):
+    normalizedText = unicodedata.normalize('NFC',textToDisplay).encode('ascii','ignore').decode('utf8')
+    return normalizedText
 
-            os.chdir('..')
-        
+#Chargement des données
 
+def DefineFolderName(cat,FolderNumber):
+    FolderName = str(FolderNumber) + " - " + cat
+    return FolderName
+
+def BuiltDirectoryCategory(DirectoryName):
+
+    try :
+        os.mkdir(DirectoryName)
+    except :
+         pass
+    os.chdir(DirectoryName)
+    try :
+        os.mkdir("Books Pictures")  
+    except :
+        pass        
+    os.chdir('..')
+    return
+
+##Fonction Principale
+
+soup = GetSoup(urlAccueil)
+ulcategories = soup.find("ul", {"class":"nav nav-list"})
+try : 
+    i=0
+    categoriesList= []
+
+    for a in ulcategories.findAll("a"):
+        tempdict = []
+        if i == 0 :
+                i=i+1
+                continue
+        else :
+            urlcategory = urlAccueil + a.get("href")               
+            tempdict.append(a.text.strip())
+            tempdict.append(urlcategory)
+        categoriesList.append(tempdict)
     
-    except Exception as e: 
-         print(e)
+    headers = [
+        "product_page_url","universal_product_code","title",
+        "price_including_tax","price_excluding_tax",
+        "number_available","product_description","category",
+        "review_rating","image_file","image_url"]
+    j = 1
+    for category , url in categoriesList :
+        
+        BuiltDirectoryCategory(DefineFolderName(category,j))
+        os.chdir(DefineFolderName(category,j))
+        j+=1
+        with open(str(category)+"_books.csv","w",newline="", encoding ="utf-8") as fichier_csv :
 
-else :
-        print("Echec : la page n'a pas était retrouvée")
+            writer = csv.DictWriter(fichier_csv, fieldnames=headers)
+            writer.writeheader()
+            writer = csv.writer(fichier_csv,delimiter=",", quoting=csv.QUOTE_ALL)
+            
+            for bookUrl in GetBooksUrlPerCategory(url):  
+                BuiltBookInfo = GetBookInfoInList(category,bookUrl)          
+                writer.writerow(BuiltBookInfo)
 
+        os.chdir('..')
+    
+
+
+except Exception as e: 
+        print(e)

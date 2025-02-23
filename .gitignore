@@ -1,4 +1,8 @@
-#Ignorer les dossiers stockant les images
+#Ignorer les dossiers fichier relatifs à l'environnement de travail
 .venv
 __pycache__
+#Ignorer les dossiers stockant les images
 Books Pictures
+#Ignorer les fichiers csv
+*.csv
+
